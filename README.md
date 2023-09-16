@@ -6,20 +6,14 @@ Originally made just to speed up running a bunch of video frames through OpenPos
 **It's currently just a stand-alone Python script, but it might be an A1111 Extension at some point (or not).**
 
 ## Feature plans:
-- Command line argument for url/port.
 - Allow videos as input, and extract frames through FFMPEG.
 - Make this an A1111 Extension.
 
 ## Examples:
-(todo)  
-placeholder:  
-input dir: frame_01.png, frame_02.png, frame_03.png, ...  
-Run script  
-=  input/frame_01.png -> ControlNet -> output/frame_01.png  
-=  input/frame_02.png -> ControlNet -> output/frame_02.png  
-=  ...)  
-output dir: frame_01.png, frame_02.png, frame_03.png, ...
-![image](../assets/image.png)
+Input: Frames as individual files.  
+![image](../assets/input.png)  
+Output: Processed frames as individual files.  
+![image](../assets/output_Scribble.png.png)
 
 ## Requirements:
 [AUTOMATIC1111 Stable Diffusion web UI](https://github.com/AUTOMATIC1111/stable-diffusion-webui),  
