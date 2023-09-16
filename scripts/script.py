@@ -1,4 +1,4 @@
-import requests, base64, os
+import requests, base64, os, argparse
 
 
 ## HOWTO:
@@ -9,23 +9,45 @@ import requests, base64, os
 
 
 ## DIRECTORIES
-dir_in = r"../input/"            # Input directory with images to process
-dir_out = r"../output/"          # Output directory (default: new directory inside input dir)
-url = "http://127.0.0.1:7860/"   # URL used to connect with A1111 ControlNet (default: http://127.0.0.1:7860/controlnet/detect)
-controlnet = "dw_openpose_full"  # Which preprocessor to use. Leave blank to list all available ones.
+dir_in = r"../input/"                    # Input directory with images to process
+dir_out = r"../output/"                  # Output directory (default: new directory inside input dir)
+url_default = "http://127.0.0.1:7860/"   # URL used to connect with A1111 ControlNet (default: http://127.0.0.1:7860/)
+controlnet_default = "dw_openpose_full"  # Which preprocessor to use.
+res_default = 512                        # What resolution to run the ControlNet pre-processor at. (default: 512)
 
 
 if __name__ == "__main__":
+  ## Command-line arguments
+  parser = argparse.ArgumentParser(description="Process a batch of images through a ControlNet sequentially.")
+  parser.add_argument("-u", "--url",        help=f"The URL to use to interact with A1111's SD web UI.  Default: {url_default}",       type=str, default=url_default)
+  parser.add_argument("-c", "--controlnet", help=f"Which ControlNet to run the input images through.  Default: {controlnet_default}", type=str, default=controlnet_default)
+  parser.add_argument("-r", "--resolution", help=f"Resolution to run the ControlNet at.  Default: {res_default}",                     type=int, default=res_default)
+  parser.add_argument("-l", "--list",       help="List out all available ControlNets.",                                               action="store_true")
+
+  ## Command-line argument handling
+  args = parser.parse_args()
+  url = args.url
+  if not (url.startswith("http://") or url.startswith("https://")):
+    url = "http://" + url
+  if not (url.endswith("/")):
+    url = url + "/"
+  controlnet = args.controlnet
+  if ((args.resolution < 64) or args.resolution > 2048):
+    raise ValueError(f"Resolution outside bounds! (min: 64, max: 2048, resolution: {args.resolution})")
+  resolution = args.resolution
+  print(f"URL: {url}")
+  print(f"ControlNet: {controlnet}")
+
   ## ControlNet selector
-  if (controlnet == ""):
-    print("Listing all available controlnets (because none was specified for use).")
+  if (args.list == True):
+    print("Listing all available controlnets.")
     nets = []
     response = requests.get(url + "controlnet/module_list?alias_names=true", headers={"accept":"application/json"})
     nets = response.json()["module_list"]
     print("\nAvailable ControlNets:")
     for net in nets:
       print(net, end=', ')
-    print("\n\nFor details on which parametrs are usable, see http://127.0.0.1:7860/docs#/default/module_list_controlnet_module_list_get")
+    print(f"\n\nFor details on which parameters are usable, see {url_default}docs#/default/module_list_controlnet_module_list_get")
 
   else:
     ## Directory and file stuff
@@ -52,12 +74,12 @@ if __name__ == "__main__":
       ## Encode image in base64
       with open(dir_in + filename, 'rb') as file:
         image_data = base64.encodebytes(file.read())
-        data = """{
-        "controlnet_module": \"""" + controlnet + """\",
-        "controlnet_input_images": ["data:image/png;base64,""" + str(image_data)[2:-3] + """\"],
-        "controlnet_processor_res": 512}""" #,
-        #"controlnet_threshold_a": 64,
-        #"controlnet_threshold_b": 64"""
+        data = "{" \
+          '"controlnet_module": "' + controlnet + '",' \
+          '"controlnet_input_images": ["data:image/png;base64,' + str(image_data)[2:-3] + '"],' \
+          '"controlnet_processor_res": ' + str(resolution) + ',' \
+          '"controlnet_threshold_a": 64,' \
+          '"controlnet_threshold_b": 64}'
 
       ## Send request to ControlNet
       headers = {"accept":       "application/json",
