@@ -87,13 +87,20 @@ if __name__ == "__main__":
       response = requests.post(url + "controlnet/detect", data=data, headers=headers)
       response_json = response.json()
       if (response.status_code == 200):  # Succes
-        ## Save image
-        image_data = base64.decodebytes(bytes(response_json["images"][0], 'ascii'))
-        with open(dir_out + filename, 'wb') as file:
-          file.write(image_data)
-        ## save json
-        with open(dir_out + filename + ".json", 'w') as file:
-          file.write(str(response_json["poses"][0]).replace(' ',''))
+        if (response_json["info"] == "Success"):
+          ## Save image
+          if (len(response_json["images"][0]) != 0):
+            image_data = base64.decodebytes(bytes(response_json["images"][0], 'ascii'))
+            with open(dir_out + filename, 'wb') as file:
+              file.write(image_data)
+          else:
+            print(f"{filename} returned an empty image.")
+          ## save json
+          if ("poses" in response_json.keys()):
+            with open(dir_out + filename + ".json", 'w') as file:
+              file.write(str(response_json["poses"][0]).replace(' ',''))
+        else:
+          print(f"{filename}'s processing wasn't succesful.\t{response_json['info']}")
       else:  # Failure
         response.raise_for_status()
     print(f"Done!\n  Output in directory: {dir_out}")
