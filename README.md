@@ -38,6 +38,24 @@ $ python script.py
 4. Wait as the images are run through the ControlNet.  
 5. Results should be in `outputs/*`. :)
 
+## Help:
+```
+usage: script.py [-h] [-u URL] [-c CONTROLNET] [-r RESOLUTION] [-l] [-a ARGA] [-b ARGB]
+
+Process a batch of images through a ControlNet sequentially.
+
+options:
+  -h, --help            show this help message and exit
+  -u URL, --url URL     The URL to use to interact with A1111's SD web UI. Default: http://127.0.0.1:7860/
+  -c CONTROLNET, --controlnet CONTROLNET
+                        Which ControlNet to run the input images through. Default: dw_openpose_full
+  -r RESOLUTION, --resolution RESOLUTION
+                        Resolution to run the ControlNet at. Default: 512
+  -l, --list            List out all available ControlNets.
+  -a ARGA, --arga ARGA  First argument passed (like Low Threshold). Defaults can be found by using -c [controlnet] -l
+  -b ARGB, --argb ARGB  Second argument passed (like High Threshold). Defaults can be found by using -c [controlnet] -l
+```
+
 ## Credits & License:
 This repository: Sjaak31367 and contributors under AGPL-3.0  
 Thanks to AUTOMATIC1111 and contributors for creating Stable Diffusion web UI!  
