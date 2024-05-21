@@ -23,6 +23,56 @@ if __name__ == "__main__":
   parser.add_argument("-c", "--controlnet", help=f"Which ControlNet to run the input images through.  Default: {controlnet_default}", type=str, default=controlnet_default)
   parser.add_argument("-r", "--resolution", help=f"Resolution to run the ControlNet at.  Default: {res_default}",                     type=int, default=res_default)
   parser.add_argument("-l", "--list",       help="List out all available ControlNets.",                                               action="store_true")
+  parser.add_argument("-a", "--arga",       help=f"First argument passed (like Low Threshold).  Defaults can be found by using -c [controlnet] -l",       type=float, default=float('nan'))
+  parser.add_argument("-b", "--argb",       help=f"Second argument passed (like High Threshold).  Defaults can be found by using -c [controlnet] -l",     type=float, default=float('nan'))
+
+  ## Command-line argument checking and correction
+  def controlnet_arg_check(_controlnet, _res, _args):
+    response = requests.get(f"{url}controlnet/module_list?alias_names=true", headers={"accept":"application/json"})
+    if (response.status_code != 200):
+      raise ConnectionError(f"Could not reach controlnet via API. Check if the URL ({url}) is correct, api-mode is enabled, and A1111 is running. If all those are working, it could be that the API is in a different format than this script expects (i.e. newer), if that's the case, please submit an issue to the repository of this script including the version of A1111 and Controlnet you are using (and possibly other extensions), thank you.")
+    if (response.json()["module_list"].count(_controlnet) != 1):
+      raise NameError(f"controlnet ({_controlnet}) not found (or multiple with the same name)")
+    details = response.json()["module_detail"][_controlnet]
+    #print(f"@@ details: {details}")
+    #print(f"@@ {len(details['sliders'])}")
+    #while (len(details["sliders"]) < 3):
+    #  details["sliders"].append({'name': 'controlnet_threshold_placeholder', 'min': 0, 'max': 2, 'value': 1})
+    argN = 0
+    _args = list(_args)
+    _argnames = list(("controlnet_threshold_PLACEHOLDER", "controlnet_threshold_PLACEHOLDER"))
+    for item in details["sliders"]:
+      if (item != None):
+        if (item["name"] == "Preprocessor Resolution"):
+          if (item["min"] > _res):
+            print(f"WARNING! specified resolution ({_res}) is less than minimum ({item['min']}), rounding up to minimum!")
+            _res = item["min"]
+          elif (item["max"] < _res):
+            print(f"WARNING! specified resolution ({_res}) is more than maximum ({item['max']}), rounding down to maximum!")
+            _res = item["max"]
+        else:
+          arg = _args[argN]
+          if (arg == arg):  # if arg != nan
+            try:
+              tmp = arg % item["step"]
+              if (tmp != 0):
+                arg = arg // item["step"] * item["step"]
+                print(f"WARNING! Value of the {argN+1}st argument ({item['name']}) must be divisible (stepped) by {item['step']}! Rounding it down to ({arg})!")
+            except:  # value doesn't have to be stepped
+              pass
+            if (item["min"] > arg):
+              print(f"WARNING! argument {argN+1} ({arg}) ({item['name']}) is less than minimum ({item['min']}), rounding up to minimum!")
+              arg = item["min"]
+            elif (item["max"] < arg):
+              print(f"WARNING! argument {argN+1} ({arg}) ({item['name']}) is more than maximum ({item['max']}), rounding down to maximum!")
+              arg = item["max"]
+          else:
+            print(f"No value provided for argument {argN+1} ({item['name']}), using default ({item['value']})")
+            arg = item['value']
+          _args[argN] = arg
+          _argnames[argN] = item["name"]
+          argN += 1
+    return (_controlnet, _res, _args, _argnames)
 
   ## Command-line argument handling
   args = parser.parse_args()
@@ -32,9 +82,9 @@ if __name__ == "__main__":
   if not (url.endswith("/")):
     url = url + "/"
   controlnet = args.controlnet
-  if ((args.resolution < 64) or args.resolution > 2048):
-    raise ValueError(f"Resolution outside bounds! (min: 64, max: 2048, resolution: {args.resolution})")
-  resolution = args.resolution
+  if (not args.list):
+    new_settings = controlnet_arg_check(controlnet, args.resolution, (args.arga, args.argb))
+    resolution = new_settings[1]
   print(f"URL: {url}")
   print(f"ControlNet: {controlnet}")
 
@@ -42,12 +92,25 @@ if __name__ == "__main__":
   if (args.list == True):
     print("Listing all available controlnets.")
     nets = []
-    response = requests.get(url + "controlnet/module_list?alias_names=true", headers={"accept":"application/json"})
+    response = requests.get(f"{url}controlnet/module_list?alias_names=true", headers={"accept":"application/json"})
     nets = response.json()["module_list"]
     print("\nAvailable ControlNets:")
     for net in nets:
       print(net, end=', ')
-    print(f"\n\nFor details on which parameters are usable, see {url_default}docs#/default/module_list_controlnet_module_list_get")
+    tmp = response.json()["module_detail"][controlnet]
+    #print(type(tmp), tmp)
+    controlnet_args = ""
+    for item in tmp["sliders"]:
+      if (item != None):
+        if (item["name"] != "Preprocessor Resolution"):
+          controlnet_args += f"\n  {item['name']}: {item['min']}~{item['max']} default:{item['value']}"
+          try:
+            controlnet_args += f" stepsize:{item['step']}"
+          except:
+            pass
+    print(f"\n\nParameters available for selected controlnet ({controlnet}): {controlnet_args}")
+    print(f"For more details on which parameters are usable, see {url_default}docs#/default/module_list_controlnet_module_list_get")
+
 
   else:
     ## Directory and file stuff
@@ -70,16 +133,30 @@ if __name__ == "__main__":
 
     ## Loop through images
     for filename in files:
-      print(f"..Processing {filename}")
+      print(f"..Processing {filename}   @ (res:{resolution}", sep='', end='')
+      if (new_settings[2][0] == new_settings[2][0]):
+        print(f" a:{new_settings[2][0]}", sep='', end='')
+      if (new_settings[2][1] == new_settings[2][1]):
+        print(f" b:{new_settings[2][1]}", sep='', end='')
+      print(')')
       ## Encode image in base64
       with open(dir_in + filename, 'rb') as file:
         image_data = base64.encodebytes(file.read())
         data = "{" \
           '"controlnet_module": "' + controlnet + '",' \
           '"controlnet_input_images": ["data:image/png;base64,' + str(image_data)[2:-3] + '"],' \
-          '"controlnet_processor_res": ' + str(resolution) + ',' \
-          '"controlnet_threshold_a": 64,' \
-          '"controlnet_threshold_b": 64}'
+          '"controlnet_processor_res": ' + str(resolution)
+        if (new_settings[2][0] == new_settings[2][0]):
+          data += ',' \
+          '"' + str(new_settings[3][0]) + '": ' + str(new_settings[2][0])
+          if (new_settings[2][1] == new_settings[2][1]):
+            data += ',' \
+            '"' + str(new_settings[3][1]) + '": ' + str(new_settings[2][1]) + '}'
+          else:
+            data += '}'
+        else:
+          data += '}'
+        #debug print(data)
 
       ## Send request to ControlNet
       headers = {"accept":       "application/json",
